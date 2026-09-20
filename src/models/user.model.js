@@ -5,7 +5,6 @@ const userSchema = new Schema(
     {
     fullname: {
         type: String,
-        unique: true,
         required: true,
         lowerCase: true,
         trim: true,
@@ -20,13 +19,14 @@ const userSchema = new Schema(
     },
     contactNumber: {
         type: String
-    }, location: {
+    },
+     location: {
         type: String
     },
 
     profileImage: {
         type: String,
-        default: String  //stored by progammer if user does'n give image  
+        default: String  //stored by frontend progammer if user does'nt give image  
     },
     password: {
         type: String,
@@ -57,7 +57,7 @@ const userSchema = new Schema(
 userSchema.pre("save",async function(next){
     if(!this.isModified("password")) return next();
     this.password= await bcrypt.hash(this.password,10);
-    next();
+   
 
 })
 
