@@ -13,15 +13,21 @@ const itemSchema = new Schema({
         trim: true },
     description: { 
         type: String, 
-        required: true 
+        required: true ,
+        trim:true
     },
     category: { 
         type: String, 
-        required: true 
+        required: true,
+        trim:true
     }, // e.g., Electronics, Books, Furniture
-    images: { 
-        type: String,
-        required:true
+    images: {
+        type:[String],
+        required:true,
+        validate:{
+            validator:arr=>arr.length>0,
+            message:"Atleast one Image is required "
+        }
     }, // Array of Cloudinary URLs
     condition: { 
         type: String, 
@@ -30,23 +36,32 @@ const itemSchema = new Schema({
     },
 
     // Core functionality selector
-    listingType: [{
+    listingType:{
+        type: [{
         type: String,
         enum: ['Sell', 'Barter', 'Rent', 'Giveaway'] // Item ek se zyada type ka bhi ho sakta hai (e.g. Sell OR Barter)
     }],
+    required:true,
+    validate:{
+        validator:arr=>arr.length>0,
+        message:"At least one listning type is required "
+    }
+},
 
     // Type specific details
     price: { 
-        type: Number 
+        type: Number ,
+        min:0
     }, // Only if 'Sell' or 'Rent' is in listingType
     rentDetails: {
-        pricePerDay: { type: Number },
-        securityDeposit: { type: Number },
-        maxDurationDays: { type: Number }
+        pricePerDay: { type: Number ,min:0},
+        securityDeposit: { type: Number,min:0 },
+        maxDurationDays: { type: Number,min:1 }
     },
     barterPreferences: [
         { 
-            type: String 
+            type: String ,
+            trim:true
         }
     ], // User iske badle kya chahta hai (e.g., ["Bicycle", "Laptop"])
 
@@ -57,10 +72,31 @@ const itemSchema = new Schema({
 
     // Item specific location (if different from user's default)
     location: {
-        type: { type: String, enum: ['Point'], default: 'Point' },
-        coordinates: { type: [Number] }
+    type: {
+        type: String,
+        enum: ['Point'],
+        required: true,
+        default: 'Point'
+    },
+    coordinates: {
+        type: [Number],
+        required: true,
+        validate: {
+            validator: function (arr) {
+                return (
+                    arr.length === 2 &&
+                    arr[0] >= -180 &&
+                    arr[0] <= 180 &&
+                    arr[1] >= -90 &&
+                    arr[1] <= 90
+                );
+            },
+            message: "Coordinates must be [longitude, latitude] with valid ranges"
+        }
     }
+}
 }, { timestamps: true }
-)
+);
+itemSchema.index({location:"2dsphere"});
 itemSchema.plugin(mongooseAggregatePaginate)
 export const Item = mongoose.model("Item", itemSchema)
