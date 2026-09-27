@@ -21,9 +21,9 @@ const userSchema = new Schema(
             type: String
         },
         locationName: {
-    type: String,
-    trim: true
-},
+            type: String,
+            trim: true
+        },
         location: {
             type: {
                 type: String,

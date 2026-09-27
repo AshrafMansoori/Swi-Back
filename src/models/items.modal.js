@@ -19,7 +19,8 @@ const itemSchema = new Schema({
     category: { 
         type: String, 
         required: true,
-        trim:true
+        trim:true,
+        lowercase: true,
     }, // e.g., Electronics, Books, Furniture
     images: {
         type:[String],
@@ -39,7 +40,8 @@ const itemSchema = new Schema({
     listingType:{
         type: [{
         type: String,
-        enum: ['Sell', 'Barter', 'Rent', 'Giveaway'] // Item ek se zyada type ka bhi ho sakta hai (e.g. Sell OR Barter)
+        enum: ['sell', 'barter', 'rent', 'giveaway'],
+        lowercase: true, // Item ek se zyada type ka bhi ho sakta hai (e.g. Sell OR Barter)
     }],
     required:true,
     validate:{
