@@ -19,9 +19,11 @@ app.use(cookieParser())
 
 import userRouter from "./routes/user.routes.js";
 import itemRouter from "./routes/item.routes.js"
+import exchangeRequestRouter from "./routes/exchange.route.js"
 
 app.use("/api/v1/users",userRouter);
 app.use("/api/v1/items",itemRouter)
+app.use("/api/v1/exchange-requests",exchangeRequestRouter);
 
 
 
