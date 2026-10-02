@@ -1,4 +1,4 @@
-import express, { response } from "express"
+import express from "express"
 import cors from "cors"
 import cookieParser from "cookie-parser";
 
@@ -21,11 +21,14 @@ import userRouter from "./routes/user.routes.js";
 import itemRouter from "./routes/item.routes.js"
 import exchangeRequestRouter from "./routes/exchange.route.js"
 import purchaseRouter from "./routes/buy.routes.js"
+import rentRouter from "./routes/rent.routes.js";
 
 app.use("/api/v1/users",userRouter);
 app.use("/api/v1/items",itemRouter)
 app.use("/api/v1/exchange-requests",exchangeRequestRouter);
 app.use("/api/v1/purchase", purchaseRouter);
+
+app.use("/api/v1/rent",rentRouter);
 
 
 export{ app }

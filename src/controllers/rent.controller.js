@@ -4,7 +4,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiErrors.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 
-import { RentRequest } from "../models/rentRequest.modal.js";
+import { RentRequest } from "../models/rent.model.js";
 import { Item } from "../models/items.modal.js";
 
 
