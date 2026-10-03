@@ -24,6 +24,7 @@ import purchaseRouter from "./routes/buy.routes.js"
 import rentRouter from "./routes/rent.routes.js";
 import reviewRouter from "./routes/review.routes.js";
 import messageRouter from "./routes/message.route.js";
+import { errorHandler } from "./middlewares/error.middleware.js";
 
 app.use("/api/v1/users",userRouter);
 app.use("/api/v1/items",itemRouter)
@@ -31,8 +32,7 @@ app.use("/api/v1/exchange-requests",exchangeRequestRouter);
 app.use("/api/v1/purchase", purchaseRouter);
 app.use("/api/v1/rent",rentRouter);
 app.use("/api/v1/reviews",reviewRouter);
-app.use(
-    "/api/v1/messages",
-    messageRouter
-);
+app.use("/api/v1/messages",messageRouter);
+
+app.use(errorHandler)
 export{ app }
