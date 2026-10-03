@@ -5,21 +5,27 @@ import http from "http";
 import { setupWebSocket } from "./socket/socket.server.js";
 import { WebSocketServer } from "ws";
 
-dotenv.config({
-    path: "./env"
-})
+dotenv.config();
 
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server })
+
+const wss = new WebSocketServer({
+    server
+});
 
 setupWebSocket(wss);
 
+const PORT = process.env.PORT || 8000;
+
 connectDB()
-    .then(()=>{
-        server.listen(process.env.PORT || 8000, () => {
-            console.log(`   Server is Listenn On Port No.. ${process.env.PORT}`)
-        })
+    .then(() => {
+        server.listen(PORT, () => {
+            console.log(`Server is listening on port ${PORT}`);
+        });
     })
     .catch((error) => {
-        console.log("Error Occur When Connecting with DataBase ", error)
-    })
+        console.log(
+            "Error occurred when connecting with database:",
+            error
+        );
+    });
