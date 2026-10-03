@@ -1,11 +1,11 @@
 import mongoose from "mongoose";
 
-import { Review } from "../models/review.model.js";
+import { Review } from "../models/review.modal.js";
 import { User } from "../models/user.model.js";
-import { ExchangeRequest } from "../models/exchangeRequest.model.js";
+import { ExchangeRequest } from "../models/exchange.modal.js";
 
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { ApiError } from "../utils/ApiError.js";
+import { ApiError } from "../utils/ApiErrors.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
 
 

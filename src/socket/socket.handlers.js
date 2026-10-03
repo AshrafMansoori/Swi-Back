@@ -4,8 +4,8 @@ import { getOnlineUser } from "./socket.server.js";
 import { Message } from "../models/message.model.js";
 
 import { ExchangeRequest } from "../models/exchange.modal.js";
-import { PurchaseRequest } from "../models/purchaseRequest.modal.js";
-import { RentRequest } from "../models/rentRequest.modal.js";
+import { PurchaseRequest } from "../models/buy.modal.js";
+import { RentRequest } from "../models/rent.model.js";
 
 
 export const handleSocketMessage = async (socket, message) => {
