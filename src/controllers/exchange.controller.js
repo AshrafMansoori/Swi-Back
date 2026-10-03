@@ -216,18 +216,15 @@ const acceptExchangeRequest = asyncHandler(async (req, res) => {
 
     // 11. Accept exchange request
     exchangeRequest.status = "accepted";
+
     await exchangeRequest.save();
 
-    // 12. Mark both items as traded
-    requestedItem.status = "Traded";
-    offeredItem.status = "Traded";
+    // IMPORTANT:
+    // Items are NOT marked as "Traded" here.
+    // They will become "Traded" only after
+    // both users confirm the actual exchange.
 
-    await Promise.all([
-        requestedItem.save(),
-        offeredItem.save()
-    ]);
-
-    // 13. Send response
+    // 12. Send response
     return res
         .status(200)
         .json(
@@ -447,6 +444,205 @@ const getOutgoingExchangeRequests = asyncHandler(async (req, res) => {
             )
         );
 });
+
+const completeExchangeRequest = asyncHandler(async (req, res) => {
+
+    // 1. Get logged-in user
+    const userId = req.user._id;
+
+    // 2. Get request ID
+    const { requestId } = req.params;
+
+    // 3. Validate request ID
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        throw new ApiError(
+            400,
+            "Invalid exchange request ID"
+        );
+    }
+
+    // 4. Find exchange request
+    const exchangeRequest = await ExchangeRequest.findById(requestId);
+
+    if (!exchangeRequest) {
+        throw new ApiError(
+            404,
+            "Exchange request not found"
+        );
+    }
+
+    // 5. Exchange must be accepted
+    if (exchangeRequest.status !== "accepted") {
+        throw new ApiError(
+            400,
+            `Exchange cannot be completed because status is ${exchangeRequest.status}`
+        );
+    }
+
+    // 6. Check whether user is part of this exchange
+    const isRequester =
+        exchangeRequest.requesterId.toString() === userId.toString();
+
+    const isOwner =
+        exchangeRequest.ownerId.toString() === userId.toString();
+
+    if (!isRequester && !isOwner) {
+        throw new ApiError(
+            403,
+            "You are not part of this exchange"
+        );
+    }
+
+    // 7. Mark current user's confirmation
+    if (isRequester) {
+
+        if (exchangeRequest.completion.requesterConfirmed) {
+            throw new ApiError(
+                400,
+                "You have already confirmed this exchange"
+            );
+        }
+
+        exchangeRequest.completion.requesterConfirmed = true;
+    }
+
+    if (isOwner) {
+
+        if (exchangeRequest.completion.ownerConfirmed) {
+            throw new ApiError(
+                400,
+                "You have already confirmed this exchange"
+            );
+        }
+
+        exchangeRequest.completion.ownerConfirmed = true;
+    }
+
+    // 8. Check whether both users have confirmed
+    const bothConfirmed =
+        exchangeRequest.completion.requesterConfirmed &&
+        exchangeRequest.completion.ownerConfirmed;
+
+    // 9. If both confirmed, complete the exchange
+    if (bothConfirmed) {
+
+        // Get both items
+        const [requestedItem, offeredItem] = await Promise.all([
+            Item.findById(exchangeRequest.requestedItemId),
+            Item.findById(exchangeRequest.offeredItemId)
+        ]);
+
+        // Check requested item
+        if (!requestedItem) {
+            throw new ApiError(
+                404,
+                "Requested item not found"
+            );
+        }
+
+        // Check offered item
+        if (!offeredItem) {
+            throw new ApiError(
+                404,
+                "Offered item not found"
+            );
+        }
+
+        // Mark exchange as completed
+        exchangeRequest.status = "completed";
+
+        // Now actual exchange is completed
+        requestedItem.status = "Traded";
+        offeredItem.status = "Traded";
+
+        // Save everything
+        await Promise.all([
+            exchangeRequest.save(),
+            requestedItem.save(),
+            offeredItem.save()
+        ]);
+
+    } else {
+
+        // Only one user has confirmed
+        await exchangeRequest.save();
+    }
+
+    // 10. Send response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                exchangeRequest,
+                bothConfirmed
+                    ? "Exchange completed successfully"
+                    : "Exchange completion confirmed. Waiting for the other user."
+            )
+        );
+});
+
+const startExchangeChat = asyncHandler(async (req, res) => {
+
+    // 1. Logged-in user
+    const ownerId = req.user._id;
+
+    // 2. Get request ID
+    const { requestId } = req.params;
+
+    // 3. Validate request ID
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        throw new ApiError(
+            400,
+            "Invalid exchange request ID"
+        );
+    }
+
+    // 4. Find exchange request
+    const exchangeRequest = await ExchangeRequest.findById(requestId);
+
+    if (!exchangeRequest) {
+        throw new ApiError(
+            404,
+            "Exchange request not found"
+        );
+    }
+
+    // 5. Only owner can start chat
+    if (
+        exchangeRequest.ownerId.toString() !==
+        ownerId.toString()
+    ) {
+        throw new ApiError(
+            403,
+            "Only the item owner can start this chat"
+        );
+    }
+
+    // 6. Chat can only be started while request is pending
+    if (exchangeRequest.status !== "pending") {
+        throw new ApiError(
+            400,
+            `Chat cannot be started because request is ${exchangeRequest.status}`
+        );
+    }
+
+    // 7. Start chat
+    exchangeRequest.chatStarted = true;
+
+    await exchangeRequest.save();
+
+    // 8. Send response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                exchangeRequest,
+                "Chat started successfully"
+            )
+        );
+});
 export {
     createExchangeRequest,
     acceptExchangeRequest,
@@ -454,6 +650,8 @@ export {
     cancelExchangeRequest,
     getExchangeHistory,
     getOutgoingExchangeRequests,
-    getIncomingExchangeRequests
+    getIncomingExchangeRequests,
+    completeExchangeRequest,
+    startExchangeChat
 
 };

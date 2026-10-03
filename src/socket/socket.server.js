@@ -1,4 +1,3 @@
-
 import { authenticateSocket } from "./socket.auth.js";
 import { handleSocketMessage } from "./socket.handlers.js";
 import { Message } from "../models/message.model.js";
@@ -51,6 +50,12 @@ export const setupWebSocket = (wss) => {
                         senderId: message.senderId,
 
                         receiverId: message.receiverId,
+
+                        // NEW
+                        transactionId: message.transactionId,
+
+                        // NEW
+                        transactionType: message.transactionType,
 
                         message: message.message,
 

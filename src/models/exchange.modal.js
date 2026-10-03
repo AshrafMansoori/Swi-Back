@@ -32,9 +32,26 @@ const exchangeRequestSchema = new mongoose.Schema(
                 "pending",
                 "accepted",
                 "rejected",
-                "cancelled"
+                "cancelled",
+                "completed"
             ],
             default: "pending"
+        },
+        chatStarted: {
+            type: Boolean,
+            default: false
+        },
+
+        completion: {
+            requesterConfirmed: {
+                type: Boolean,
+                default: false
+            },
+
+            ownerConfirmed: {
+                type: Boolean,
+                default: false
+            }
         }
     },
     {

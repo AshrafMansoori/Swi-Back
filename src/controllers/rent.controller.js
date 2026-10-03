@@ -451,8 +451,8 @@ const cancelRentRequest = asyncHandler(async (req, res) => {
 
 const returnRentItem = asyncHandler(async (req, res) => {
 
-    // 1. Logged-in user = Borrower
-    const borrowerId = req.user._id;
+    // 1. Logged-in user
+    const userId = req.user._id;
 
     // 2. Get request ID from URL
     const { requestId } = req.params;
@@ -475,7 +475,7 @@ const returnRentItem = asyncHandler(async (req, res) => {
         );
     }
 
-    // 5. Only accepted request can be returned
+    // 5. Rent must be accepted
     if (rentRequest.status !== "accepted") {
         throw new ApiError(
             400,
@@ -483,56 +483,102 @@ const returnRentItem = asyncHandler(async (req, res) => {
         );
     }
 
-    // 6. Only borrower can return the item
-    if (
-        rentRequest.borrowerId.toString() !== borrowerId.toString()
-    ) {
+    // 6. Check whether user is borrower or lender
+    const isBorrower =
+        rentRequest.borrowerId.toString() === userId.toString();
+
+    const isLender =
+        rentRequest.lenderId.toString() === userId.toString();
+
+    if (!isBorrower && !isLender) {
         throw new ApiError(
             403,
-            "You are not authorized to return this item"
+            "You are not part of this rental"
         );
     }
 
-    // 7. Find item
-    const item = await Item.findById(
-        rentRequest.itemId
-    );
+    // 7. Mark current user's confirmation
 
-    if (!item) {
-        throw new ApiError(
-            404,
-            "Item not found"
-        );
+    if (isBorrower) {
+
+        if (rentRequest.completion.borrowerConfirmed) {
+            throw new ApiError(
+                400,
+                "You have already confirmed the return"
+            );
+        }
+
+        rentRequest.completion.borrowerConfirmed = true;
     }
 
-    // 8. Item must currently be rented
-    if (item.status !== "Rented") {
-        throw new ApiError(
-            400,
-            "Item is not currently rented"
-        );
+    if (isLender) {
+
+        if (rentRequest.completion.lenderConfirmed) {
+            throw new ApiError(
+                400,
+                "You have already confirmed the return"
+            );
+        }
+
+        rentRequest.completion.lenderConfirmed = true;
     }
 
-    // 9. Mark request as returned
-    rentRequest.status = "returned";
+    // 8. Check whether both users confirmed
+    const bothConfirmed =
+        rentRequest.completion.borrowerConfirmed &&
+        rentRequest.completion.lenderConfirmed;
 
-    // 10. Make item available again
-    item.status = "Available";
+    // 9. If both confirmed, mark rental as returned
+    if (bothConfirmed) {
 
-    // 11. Save both
-    await Promise.all([
-        rentRequest.save(),
-        item.save()
-    ]);
+        // Find item
+        const item = await Item.findById(
+            rentRequest.itemId
+        );
 
-    // 12. Response
+        if (!item) {
+            throw new ApiError(
+                404,
+                "Item not found"
+            );
+        }
+
+        // Item should currently be rented
+        if (item.status !== "Rented") {
+            throw new ApiError(
+                400,
+                "Item is not currently rented"
+            );
+        }
+
+        // Mark rental as returned
+        rentRequest.status = "returned";
+
+        // Make item available again
+        item.status = "Available";
+
+        // Save both
+        await Promise.all([
+            rentRequest.save(),
+            item.save()
+        ]);
+
+    } else {
+
+        // Only one user confirmed
+        await rentRequest.save();
+    }
+
+    // 10. Response
     return res
         .status(200)
         .json(
             new ApiResponse(
                 200,
                 rentRequest,
-                "Item returned successfully"
+                bothConfirmed
+                    ? "Item return completed successfully"
+                    : "Return confirmed. Waiting for the other user."
             )
         );
 });
@@ -593,7 +639,67 @@ const getRentHistory = asyncHandler(async (req, res) => {
         );
 });
 
+const startRentChat = asyncHandler(async (req, res) => {
 
+    // 1. Logged-in user = Lender
+    const lenderId = req.user._id;
+
+    // 2. Get request ID
+    const { requestId } = req.params;
+
+    // 3. Validate request ID
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        throw new ApiError(
+            400,
+            "Invalid rent request ID"
+        );
+    }
+
+    // 4. Find rent request
+    const rentRequest = await RentRequest.findById(requestId);
+
+    if (!rentRequest) {
+        throw new ApiError(
+            404,
+            "Rent request not found"
+        );
+    }
+
+    // 5. Only pending request can start chat
+    if (rentRequest.status !== "pending") {
+        throw new ApiError(
+            400,
+            `Chat cannot be started because rent request is ${rentRequest.status}`
+        );
+    }
+
+    // 6. Only lender can start chat
+    if (
+        rentRequest.lenderId.toString() !== lenderId.toString()
+    ) {
+        throw new ApiError(
+            403,
+            "Only the lender can start this chat"
+        );
+    }
+
+    // 7. Start chat
+    rentRequest.chatStarted = true;
+
+    // 8. Save request
+    await rentRequest.save();
+
+    // 9. Response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                rentRequest,
+                "Rent chat started successfully"
+            )
+        );
+});
 export {
     createRentRequest,
     getIncomingRentRequests,
@@ -602,6 +708,7 @@ export {
     rejectRentRequest,
     cancelRentRequest,
     returnRentItem,
-    getRentHistory
+    getRentHistory,
+    startRentChat
     
 };

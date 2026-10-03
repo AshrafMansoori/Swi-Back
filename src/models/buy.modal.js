@@ -26,9 +26,27 @@ const purchaseRequestSchema = new mongoose.Schema(
                 "pending",
                 "accepted",
                 "rejected",
-                "cancelled"
+                "cancelled",
+                "completed"
             ],
             default: "pending"
+        },
+
+        chatStarted: {
+            type: Boolean,
+            default: false
+        },
+
+        completion: {
+            buyerConfirmed: {
+                type: Boolean,
+                default: false
+            },
+
+            sellerConfirmed: {
+                type: Boolean,
+                default: false
+            }
         }
     },
     {

@@ -18,6 +18,9 @@ const rentRequestSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Item",
             required: true
+        }, chatStarted: {
+            type: Boolean,
+            default: false
         },
 
         startDate: {
@@ -40,6 +43,18 @@ const rentRequestSchema = new mongoose.Schema(
                 "returned"
             ],
             default: "pending"
+        },
+
+        completion: {
+            borrowerConfirmed: {
+                type: Boolean,
+                default: false
+            },
+
+            lenderConfirmed: {
+                type: Boolean,
+                default: false
+            }
         }
     },
     {

@@ -1,14 +1,17 @@
 import { Router } from "express";
 import { verifiJWT } from "../middlewares/auth.middleware.js";
+
 import {
     createExchangeRequest,
-    acceptExchangeRequest, 
+    acceptExchangeRequest,
     rejectExchangeRequest,
     cancelExchangeRequest,
+    completeExchangeRequest,
     getExchangeHistory,
     getIncomingExchangeRequests,
-    getOutgoingExchangeRequests
-} from "../controllers/exchange.controller.js"
+    getOutgoingExchangeRequests,
+    startExchangeChat
+} from "../controllers/exchange.controller.js";
 
 const router = Router();
 
@@ -23,9 +26,14 @@ router
 router
     .route("/:requestId/reject")
     .patch(verifiJWT, rejectExchangeRequest);
+
 router
     .route("/:requestId/cancel")
     .patch(verifiJWT, cancelExchangeRequest);
+
+router
+    .route("/:requestId/complete")
+    .patch(verifiJWT, completeExchangeRequest);
 
 router
     .route("/history")
@@ -38,4 +46,7 @@ router
 router
     .route("/outgoing")
     .get(verifiJWT, getOutgoingExchangeRequests);
+
+
+router.route("/:requestId/chat").patch(verifiJWT,startExchangeChat);
 export default router;

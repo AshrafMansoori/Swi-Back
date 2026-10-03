@@ -8,7 +8,8 @@ import {
     rejectRentRequest,
     cancelRentRequest,
     returnRentItem,
-    getRentHistory
+    getRentHistory,
+    startRentChat
 } from "../controllers/rent.controller.js";
 
 import { verifiJWT } from "../middlewares/auth.middleware.js";
@@ -96,6 +97,13 @@ router.patch(
 // ========================================
 // RENT HISTORY
 // ========================================
+
+router.patch(
+    "/request/:requestId/chat",
+    verifiJWT,
+    startRentChat
+);
+
 
 router.get(
     "/history",

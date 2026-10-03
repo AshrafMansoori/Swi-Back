@@ -22,13 +22,17 @@ import itemRouter from "./routes/item.routes.js"
 import exchangeRequestRouter from "./routes/exchange.route.js"
 import purchaseRouter from "./routes/buy.routes.js"
 import rentRouter from "./routes/rent.routes.js";
+import reviewRouter from "./routes/review.routes.js";
+import messageRouter from "./routes/message.route.js";
 
 app.use("/api/v1/users",userRouter);
 app.use("/api/v1/items",itemRouter)
 app.use("/api/v1/exchange-requests",exchangeRequestRouter);
 app.use("/api/v1/purchase", purchaseRouter);
-
 app.use("/api/v1/rent",rentRouter);
-
-
+app.use("/api/v1/reviews",reviewRouter);
+app.use(
+    "/api/v1/messages",
+    messageRouter
+);
 export{ app }

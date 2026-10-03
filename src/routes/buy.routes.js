@@ -7,7 +7,9 @@ import {
     acceptPurchaseRequest,
     rejectPurchaseRequest,
     cancelPurchaseRequest,
-    getPurchaseHistory
+    getPurchaseHistory,
+    completePurchaseRequest,
+    startPurchaseChat
 } from "../controllers/buy.controller.js";
 
 import { verifiJWT } from "../middlewares/auth.middleware.js";
@@ -55,6 +57,13 @@ router
 router
     .route("/:requestId/cancel")
     .patch(verifiJWT, cancelPurchaseRequest);
+
+router
+    .route("/:requestId/complete")
+    .patch(verifiJWT, completePurchaseRequest);
+
+router.route("/:requestId/chat")
+    .patch(verifiJWT, startPurchaseChat);
 
 
 export default router;

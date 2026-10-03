@@ -1,6 +1,12 @@
 import mongoose from "mongoose";
+
 import { getOnlineUser } from "./socket.server.js";
 import { Message } from "../models/message.model.js";
+
+import { ExchangeRequest } from "../models/exchange.modal.js";
+import { PurchaseRequest } from "../models/purchaseRequest.modal.js";
+import { RentRequest } from "../models/rentRequest.modal.js";
+
 
 export const handleSocketMessage = async (socket, message) => {
 
@@ -24,11 +30,8 @@ export const handleSocketMessage = async (socket, message) => {
 
             socket.send(
                 JSON.stringify({
-
                     type: "pong",
-
                     message: "WebSocket is working"
-
                 })
             );
 
@@ -44,20 +47,22 @@ export const handleSocketMessage = async (socket, message) => {
 
             const {
                 receiverId,
+                transactionId,
+                transactionType,
                 message: messageText
             } = data;
 
 
-            // Check receiver ID
+            // ==============================
+            // CHECK REQUIRED FIELDS
+            // ==============================
+
             if (!receiverId) {
 
                 socket.send(
                     JSON.stringify({
-
                         type: "error",
-
                         message: "Receiver ID is required"
-
                     })
                 );
 
@@ -65,20 +70,44 @@ export const handleSocketMessage = async (socket, message) => {
             }
 
 
-            // Validate MongoDB ObjectId
+            if (!transactionId) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message: "Transaction ID is required"
+                    })
+                );
+
+                return;
+            }
+
+
+            if (!transactionType) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message: "Transaction type is required"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // VALIDATE OBJECT IDS
+            // ==============================
+
             if (
-                !mongoose.Types.ObjectId.isValid(
-                    receiverId
-                )
+                !mongoose.Types.ObjectId.isValid(receiverId)
             ) {
 
                 socket.send(
                     JSON.stringify({
-
                         type: "error",
-
                         message: "Invalid receiver ID"
-
                     })
                 );
 
@@ -86,7 +115,48 @@ export const handleSocketMessage = async (socket, message) => {
             }
 
 
-            // Validate message
+            if (
+                !mongoose.Types.ObjectId.isValid(transactionId)
+            ) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message: "Invalid transaction ID"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // VALIDATE TRANSACTION TYPE
+            // ==============================
+
+            if (
+                ![
+                    "exchange",
+                    "purchase",
+                    "rent"
+                ].includes(transactionType)
+            ) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message: "Invalid transaction type"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // VALIDATE MESSAGE
+            // ==============================
+
             if (
                 typeof messageText !== "string" ||
                 !messageText.trim()
@@ -94,11 +164,8 @@ export const handleSocketMessage = async (socket, message) => {
 
                 socket.send(
                     JSON.stringify({
-
                         type: "error",
-
                         message: "Message cannot be empty"
-
                     })
                 );
 
@@ -106,12 +173,195 @@ export const handleSocketMessage = async (socket, message) => {
             }
 
 
-            // Save message in MongoDB
+            // ==============================
+            // FIND TRANSACTION
+            // ==============================
+
+            let transaction;
+
+            if (transactionType === "exchange") {
+
+                transaction =
+                    await ExchangeRequest.findById(
+                        transactionId
+                    );
+
+            } else if (transactionType === "purchase") {
+
+                transaction =
+                    await PurchaseRequest.findById(
+                        transactionId
+                    );
+
+            } else if (transactionType === "rent") {
+
+                transaction =
+                    await RentRequest.findById(
+                        transactionId
+                    );
+            }
+
+
+            // ==============================
+            // TRANSACTION EXISTS?
+            // ==============================
+
+            if (!transaction) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message: "Transaction not found"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // CHECK PARTICIPANT
+            // ==============================
+
+            let isParticipant = false;
+
+            if (transactionType === "exchange") {
+
+                isParticipant =
+                    transaction.requesterId.toString() ===
+                        socket.userId ||
+                    transaction.ownerId.toString() ===
+                        socket.userId;
+
+            } else if (transactionType === "purchase") {
+
+                isParticipant =
+                    transaction.buyerId.toString() ===
+                        socket.userId ||
+                    transaction.sellerId.toString() ===
+                        socket.userId;
+
+            } else if (transactionType === "rent") {
+
+                isParticipant =
+                    transaction.borrowerId.toString() ===
+                        socket.userId ||
+                    transaction.lenderId.toString() ===
+                        socket.userId;
+            }
+
+
+            if (!isParticipant) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message:
+                            "You are not part of this conversation"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // CHECK CHAT STARTED
+            // ==============================
+
+            if (!transaction.chatStarted) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message:
+                            "Chat has not been started by the owner"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // CHECK RECEIVER
+            // ==============================
+
+            let receiverIsParticipant = false;
+
+            if (transactionType === "exchange") {
+
+                receiverIsParticipant =
+                    transaction.requesterId.toString() ===
+                        receiverId ||
+                    transaction.ownerId.toString() ===
+                        receiverId;
+
+            } else if (transactionType === "purchase") {
+
+                receiverIsParticipant =
+                    transaction.buyerId.toString() ===
+                        receiverId ||
+                    transaction.sellerId.toString() ===
+                        receiverId;
+
+            } else if (transactionType === "rent") {
+
+                receiverIsParticipant =
+                    transaction.borrowerId.toString() ===
+                        receiverId ||
+                    transaction.lenderId.toString() ===
+                        receiverId;
+            }
+
+
+            if (!receiverIsParticipant) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message:
+                            "Receiver is not part of this conversation"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // RECEIVER CANNOT BE SENDER
+            // ==============================
+
+            if (
+                socket.userId === receiverId
+            ) {
+
+                socket.send(
+                    JSON.stringify({
+                        type: "error",
+                        message:
+                            "You cannot send a message to yourself"
+                    })
+                );
+
+                return;
+            }
+
+
+            // ==============================
+            // SAVE MESSAGE
+            // ==============================
+
             const savedMessage = await Message.create({
 
                 senderId: socket.userId,
 
                 receiverId: receiverId,
+
+                transactionId: transactionId,
+
+                transactionType: transactionType,
 
                 message: messageText.trim(),
 
@@ -128,7 +378,10 @@ export const handleSocketMessage = async (socket, message) => {
             );
 
 
-            // Find receiver's active WebSocket
+            // ==============================
+            // FIND RECEIVER SOCKET
+            // ==============================
+
             const receiverSocket =
                 getOnlineUser(receiverId);
 
@@ -146,7 +399,8 @@ export const handleSocketMessage = async (socket, message) => {
 
                         status: "sent",
 
-                        messageId: savedMessage._id,
+                        messageId:
+                            savedMessage._id,
 
                         message:
                             "Message saved. Receiver is offline."
@@ -167,23 +421,38 @@ export const handleSocketMessage = async (socket, message) => {
 
                     type: "private_message",
 
-                    messageId: savedMessage._id,
+                    messageId:
+                        savedMessage._id,
 
-                    senderId: savedMessage.senderId,
+                    senderId:
+                        savedMessage.senderId,
 
-                    receiverId: savedMessage.receiverId,
+                    receiverId:
+                        savedMessage.receiverId,
 
-                    message: savedMessage.message,
+                    transactionId:
+                        savedMessage.transactionId,
 
-                    status: savedMessage.status,
+                    transactionType:
+                        savedMessage.transactionType,
 
-                    createdAt: savedMessage.createdAt
+                    message:
+                        savedMessage.message,
+
+                    status:
+                        savedMessage.status,
+
+                    createdAt:
+                        savedMessage.createdAt
 
                 })
             );
 
 
-            // Sender gets initial sent status
+            // ==============================
+            // SENDER STATUS
+            // ==============================
+
             socket.send(
                 JSON.stringify({
 
@@ -191,9 +460,11 @@ export const handleSocketMessage = async (socket, message) => {
 
                     status: "sent",
 
-                    messageId: savedMessage._id,
+                    messageId:
+                        savedMessage._id,
 
-                    message: "Message sent successfully"
+                    message:
+                        "Message sent successfully"
 
                 })
             );
@@ -221,7 +492,8 @@ export const handleSocketMessage = async (socket, message) => {
 
                         type: "error",
 
-                        message: "Message ID is required"
+                        message:
+                            "Message ID is required"
 
                     })
                 );
@@ -242,7 +514,8 @@ export const handleSocketMessage = async (socket, message) => {
 
                         type: "error",
 
-                        message: "Invalid message ID"
+                        message:
+                            "Invalid message ID"
 
                     })
                 );
@@ -265,7 +538,8 @@ export const handleSocketMessage = async (socket, message) => {
 
                         type: "error",
 
-                        message: "Message not found"
+                        message:
+                            "Message not found"
 
                     })
                 );
@@ -274,7 +548,7 @@ export const handleSocketMessage = async (socket, message) => {
             }
 
 
-            // Only receiver can mark message delivered
+            // Only receiver can mark delivered
             if (
                 messageData.receiverId.toString() !==
                 socket.userId
@@ -301,14 +575,14 @@ export const handleSocketMessage = async (socket, message) => {
             await messageData.save();
 
 
-            // Find sender's active socket
+            // Find sender socket
             const senderSocket =
                 getOnlineUser(
                     messageData.senderId
                 );
 
 
-            // Notify sender if online
+            // Notify sender
             if (senderSocket) {
 
                 senderSocket.send(

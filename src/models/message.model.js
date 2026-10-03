@@ -16,6 +16,20 @@ const messageSchema = new mongoose.Schema(
             index: true
         },
 
+        // Exchange/Purchase/Rent request ID
+        transactionId: {
+            type: mongoose.Schema.Types.ObjectId,
+            required: true,
+            index: true
+        },
+
+        // Type of transaction
+        transactionType: {
+            type: String,
+            enum: ["exchange", "purchase", "rent"],
+            required: true
+        },
+
         message: {
             type: String,
             required: true,
@@ -53,6 +67,16 @@ messageSchema.index({
 messageSchema.index({
     senderId: 1,
     receiverId: 1,
+    transactionId: 1,
+    transactionType: 1,
+    createdAt: 1
+});
+
+
+// Transaction ki complete chat history
+messageSchema.index({
+    transactionId: 1,
+    transactionType: 1,
     createdAt: 1
 });
 

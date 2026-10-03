@@ -102,6 +102,7 @@ const createPurchaseRequest = asyncHandler(async (req, res) => {
         );
 });
 
+
 const getIncomingPurchaseRequests = asyncHandler(async (req, res) => {
 
     // 1. Logged-in user = Seller
@@ -112,19 +113,14 @@ const getIncomingPurchaseRequests = asyncHandler(async (req, res) => {
         sellerId: sellerId,
         status: "pending"
     })
-        // Buyer ki basic information
         .populate(
             "buyerId",
             "fullname profileImage"
         )
-
-        // Item ki basic information
         .populate(
             "itemId",
             "title images price condition"
         )
-
-        // Latest requests first
         .sort({
             createdAt: -1
         });
@@ -141,6 +137,7 @@ const getIncomingPurchaseRequests = asyncHandler(async (req, res) => {
         );
 });
 
+
 const getOutgoingPurchaseRequests = asyncHandler(async (req, res) => {
 
     // 1. Logged-in user = Buyer
@@ -151,19 +148,14 @@ const getOutgoingPurchaseRequests = asyncHandler(async (req, res) => {
         buyerId: buyerId,
         status: "pending"
     })
-        // Seller ki basic information
         .populate(
             "sellerId",
             "fullname profileImage"
         )
-
-        // Item ki basic information
         .populate(
             "itemId",
             "title images price condition"
         )
-
-        // Latest request first
         .sort({
             createdAt: -1
         });
@@ -179,6 +171,7 @@ const getOutgoingPurchaseRequests = asyncHandler(async (req, res) => {
             )
         );
 });
+
 
 const acceptPurchaseRequest = asyncHandler(async (req, res) => {
 
@@ -255,16 +248,14 @@ const acceptPurchaseRequest = asyncHandler(async (req, res) => {
     // 10. Accept purchase request
     purchaseRequest.status = "accepted";
 
-    // 11. Change Item model status
-    item.status = "Sold";
+    await purchaseRequest.save();
 
-    // 12. Save both
-    await Promise.all([
-        purchaseRequest.save(),
-        item.save()
-    ]);
+    // IMPORTANT:
+    // Item is NOT marked as Sold here.
+    // It will become Sold only after
+    // buyer and seller both confirm completion.
 
-    // 13. Response
+    // 11. Response
     return res
         .status(200)
         .json(
@@ -275,6 +266,133 @@ const acceptPurchaseRequest = asyncHandler(async (req, res) => {
             )
         );
 });
+
+
+const completePurchaseRequest = asyncHandler(async (req, res) => {
+
+    // 1. Logged-in user
+    const userId = req.user._id;
+
+    // 2. Get request ID
+    const { requestId } = req.params;
+
+    // 3. Validate request ID
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        throw new ApiError(
+            400,
+            "Invalid purchase request ID"
+        );
+    }
+
+    // 4. Find purchase request
+    const purchaseRequest = await PurchaseRequest.findById(requestId);
+
+    if (!purchaseRequest) {
+        throw new ApiError(
+            404,
+            "Purchase request not found"
+        );
+    }
+
+    // 5. Purchase request must be accepted
+    if (purchaseRequest.status !== "accepted") {
+        throw new ApiError(
+            400,
+            `Purchase cannot be completed because status is ${purchaseRequest.status}`
+        );
+    }
+
+    // 6. Check whether user is buyer or seller
+    const isBuyer =
+        purchaseRequest.buyerId.toString() === userId.toString();
+
+    const isSeller =
+        purchaseRequest.sellerId.toString() === userId.toString();
+
+    if (!isBuyer && !isSeller) {
+        throw new ApiError(
+            403,
+            "You are not part of this purchase"
+        );
+    }
+
+    // 7. Mark current user's confirmation
+    if (isBuyer) {
+
+        if (purchaseRequest.completion.buyerConfirmed) {
+            throw new ApiError(
+                400,
+                "You have already confirmed this purchase"
+            );
+        }
+
+        purchaseRequest.completion.buyerConfirmed = true;
+    }
+
+    if (isSeller) {
+
+        if (purchaseRequest.completion.sellerConfirmed) {
+            throw new ApiError(
+                400,
+                "You have already confirmed this purchase"
+            );
+        }
+
+        purchaseRequest.completion.sellerConfirmed = true;
+    }
+
+    // 8. Check whether both users have confirmed
+    const bothConfirmed =
+        purchaseRequest.completion.buyerConfirmed &&
+        purchaseRequest.completion.sellerConfirmed;
+
+    // 9. If both confirmed, complete purchase
+    if (bothConfirmed) {
+
+        // Find item
+        const item = await Item.findById(
+            purchaseRequest.itemId
+        );
+
+        if (!item) {
+            throw new ApiError(
+                404,
+                "Item not found"
+            );
+        }
+
+        // Mark purchase as completed
+        purchaseRequest.status = "completed";
+
+        // Mark item as sold
+        item.status = "Sold";
+
+        // Save both
+        await Promise.all([
+            purchaseRequest.save(),
+            item.save()
+        ]);
+
+    } else {
+
+        // Only one user has confirmed
+        await purchaseRequest.save();
+    }
+
+    // 10. Response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                purchaseRequest,
+                bothConfirmed
+                    ? "Purchase completed successfully"
+                    : "Purchase completion confirmed. Waiting for the other user."
+            )
+        );
+});
+
 
 const rejectPurchaseRequest = asyncHandler(async (req, res) => {
 
@@ -401,6 +519,7 @@ const cancelPurchaseRequest = asyncHandler(async (req, res) => {
         );
 });
 
+
 const getPurchaseHistory = asyncHandler(async (req, res) => {
 
     // 1. Logged-in user
@@ -415,12 +534,12 @@ const getPurchaseHistory = asyncHandler(async (req, res) => {
         status: {
             $in: [
                 "accepted",
+                "completed",
                 "rejected",
                 "cancelled"
             ]
         }
     })
-
         // Buyer information
         .populate(
             "buyerId",
@@ -455,15 +574,80 @@ const getPurchaseHistory = asyncHandler(async (req, res) => {
             )
         );
 });
+
+
+const startPurchaseChat = asyncHandler(async (req, res) => {
+
+    // 1. Logged-in user = Seller
+    const sellerId = req.user._id;
+
+    // 2. Get request ID
+    const { requestId } = req.params;
+
+    // 3. Validate request ID
+    if (!mongoose.Types.ObjectId.isValid(requestId)) {
+        throw new ApiError(
+            400,
+            "Invalid purchase request ID"
+        );
+    }
+
+    // 4. Find purchase request
+    const purchaseRequest =
+        await PurchaseRequest.findById(requestId);
+
+    if (!purchaseRequest) {
+        throw new ApiError(
+            404,
+            "Purchase request not found"
+        );
+    }
+
+    // 5. Chat can only be started for pending request
+    if (purchaseRequest.status !== "pending") {
+        throw new ApiError(
+            400,
+            `Chat cannot be started because purchase request is ${purchaseRequest.status}`
+        );
+    }
+
+    // 6. Only seller can start the chat
+    if (
+        purchaseRequest.sellerId.toString() !==
+        sellerId.toString()
+    ) {
+        throw new ApiError(
+            403,
+            "Only the seller can start this chat"
+        );
+    }
+
+    // 7. Start chat
+    purchaseRequest.chatStarted = true;
+
+    // 8. Save
+    await purchaseRequest.save();
+
+    // 9. Response
+    return res
+        .status(200)
+        .json(
+            new ApiResponse(
+                200,
+                purchaseRequest,
+                "Purchase chat started successfully"
+            )
+        );
+});
+
 export {
     createPurchaseRequest,
     getIncomingPurchaseRequests,
     getOutgoingPurchaseRequests,
     acceptPurchaseRequest,
+    completePurchaseRequest,
     rejectPurchaseRequest,
     cancelPurchaseRequest,
-    getPurchaseHistory
-
-
-
+    getPurchaseHistory,
+    startPurchaseChat
 };
