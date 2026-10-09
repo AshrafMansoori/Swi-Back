@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 
 import { PurchaseRequest } from "../models/buy.modal.js";
 import { Item } from "../models/items.modal.js";
+import { recalculateTrustScore } from "../utils/trustScore.js";
 
 
 const createPurchaseRequest = asyncHandler(async (req, res) => {
@@ -377,6 +378,10 @@ const completePurchaseRequest = asyncHandler(async (req, res) => {
         await Promise.all([
             purchaseRequest.save(),
             item.save()
+        ]);
+        await Promise.all([
+            recalculateTrustScore(purchaseRequest.buyerId),
+            recalculateTrustScore(purchaseRequest.sellerId)
         ]);
 
     } else {

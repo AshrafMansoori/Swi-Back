@@ -5,6 +5,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 
 import { ExchangeRequest } from "../models/exchange.modal.js";
 import { Item } from "../models/items.modal.js";
+import { recalculateTrustScore } from "../utils/trustScore.js";
 
 
 const createExchangeRequest = asyncHandler(async (req, res) => {
@@ -574,6 +575,10 @@ const completeExchangeRequest = asyncHandler(async (req, res) => {
             exchangeRequest.save(),
             requestedItem.save(),
             offeredItem.save()
+        ]);
+        await Promise.all([
+            recalculateTrustScore(exchangeRequest.requesterId),
+            recalculateTrustScore(exchangeRequest.ownerId)
         ]);
 
     } else {

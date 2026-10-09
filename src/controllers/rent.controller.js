@@ -6,6 +6,7 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 
 import { RentRequest } from "../models/rent.model.js";
 import { Item } from "../models/items.modal.js";
+import { recalculateTrustScore } from "../utils/trustScore.js";
 
 
 const createRentRequest = asyncHandler(async (req, res) => {
@@ -322,6 +323,10 @@ const acceptRentRequest = asyncHandler(async (req, res) => {
     await Promise.all([
         rentRequest.save(),
         item.save()
+    ]);
+    await Promise.all([
+        recalculateTrustScore(rentRequest.borrowerId),
+        recalculateTrustScore(rentRequest.lenderId)
     ]);
 
     // 14. Response

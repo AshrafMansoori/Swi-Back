@@ -2,6 +2,7 @@ import { asyncHandler } from "../utils/asyncHandler.js"
 import { ApiError } from "../utils/ApiErrors.js";
 import { ApiResponse } from "../utils/ApiResponse.js"
 import { Item } from "../models/items.modal.js";
+import { User } from "../models/user.model.js";
 import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import mongoose from "mongoose";
 
@@ -202,6 +203,7 @@ const getHomeProducts = asyncHandler(async (req, res) => {
         sort = "recommended",
         category,
         listingType,
+        q,
         longitude,
         latitude,
         page = 1,
@@ -221,6 +223,22 @@ const getHomeProducts = asyncHandler(async (req, res) => {
     const filter = {
         status: "Available"
     };
+
+    if (q !== undefined) {
+        if (typeof q !== "string" || q.trim().length > 100) {
+            throw new ApiError(400, "Search query must be 100 characters or fewer");
+        }
+        const escapedQuery = q.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (escapedQuery) {
+            const searchPattern = new RegExp(escapedQuery, "i");
+            filter.$or = [
+                { title: searchPattern },
+                { description: searchPattern },
+                { category: searchPattern },
+                { condition: searchPattern }
+            ];
+        }
+    }
 
     // Category filter
     if (category) {
@@ -346,6 +364,59 @@ const getMyItems = asyncHandler(async (req, res) => {
                 "My items fetched successfully"
             )
         );
+});
+
+const getLikedItems = asyncHandler(async (req, res) => {
+    const user = await User.findById(req.user._id).select("likedItems");
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    const items = await Item.find({
+        _id: { $in: user.likedItems },
+        status: { $ne: "Hidden" }
+    })
+        .populate("ownerId", "fullname profileImage trustScore isVerified")
+        .sort({ updatedAt: -1 });
+
+    return res.status(200).json(
+        new ApiResponse(200, items, "Liked items fetched successfully")
+    );
+});
+
+const setItemLiked = asyncHandler(async (req, res) => {
+    const { itemId } = req.params;
+    const { liked } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(itemId)) {
+        throw new ApiError(400, "Invalid item ID");
+    }
+    if (typeof liked !== "boolean") {
+        throw new ApiError(400, "A boolean liked value is required");
+    }
+    if (liked && !(await Item.exists({ _id: itemId, status: { $ne: "Hidden" } }))) {
+        throw new ApiError(404, "Item not found");
+    }
+
+    const update = liked
+        ? { $addToSet: { likedItems: itemId } }
+        : { $pull: { likedItems: itemId } };
+    const user = await User.findByIdAndUpdate(req.user._id, update, {
+        new: true,
+        projection: { likedItems: 1 }
+    });
+
+    if (!user) {
+        throw new ApiError(404, "User not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            { likedItems: user.likedItems },
+            liked ? "Item saved" : "Item removed from saved items"
+        )
+    );
 });
 
 const updateItem = asyncHandler(async (req, res) => {
@@ -586,6 +657,8 @@ export {
     getHomeProducts,
     getSingleItem,
     getMyItems,
+    getLikedItems,
+    setItemLiked,
     updateItem,
     deleteItem
 

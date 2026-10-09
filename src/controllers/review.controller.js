@@ -7,7 +7,7 @@ import { ExchangeRequest } from "../models/exchange.modal.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiErrors.js"
 import { ApiResponse } from "../utils/ApiResponse.js";
-
+import { recalculateTrustScore } from "../utils/trustScore.js";
 
 const createExchangeReview = asyncHandler(async (req, res) => {
 
@@ -217,51 +217,7 @@ const createExchangeReview = asyncHandler(async (req, res) => {
     // 12. Recalculate Trust Score
     // ==========================================
 
-    const ratingResult =
-        await Review.aggregate([
-            {
-                $match: {
-                    reviewedUserId:
-                        new mongoose.Types.ObjectId(
-                            reviewedUserId
-                        )
-                }
-            },
-
-            {
-                $group: {
-                    _id: "$reviewedUserId",
-
-                    averageRating: {
-                        $avg: "$rating"
-                    }
-                }
-            }
-        ]);
-
-
-    const trustScore =
-        ratingResult.length > 0
-            ? Number(
-                ratingResult[0]
-                    .averageRating
-                    .toFixed(2)
-            )
-            : 0;
-
-
-    // ==========================================
-    // 13. Update user's Trust Score
-    // ==========================================
-
-    await User.findByIdAndUpdate(
-        reviewedUserId,
-        {
-            $set: {
-                trustScore
-            }
-        }
-    );
+    const trustScore = await recalculateTrustScore(reviewedUserId);
 
 
     // ==========================================
@@ -494,51 +450,7 @@ const createPurchaseReview = asyncHandler(async (req, res) => {
     // 12. Recalculate Trust Score
     // ==========================================
 
-    const ratingResult =
-        await Review.aggregate([
-            {
-                $match: {
-                    reviewedUserId:
-                        new mongoose.Types.ObjectId(
-                            reviewedUserId
-                        )
-                }
-            },
-
-            {
-                $group: {
-                    _id: "$reviewedUserId",
-
-                    averageRating: {
-                        $avg: "$rating"
-                    }
-                }
-            }
-        ]);
-
-
-    const trustScore =
-        ratingResult.length > 0
-            ? Number(
-                ratingResult[0]
-                    .averageRating
-                    .toFixed(2)
-            )
-            : 0;
-
-
-    // ==========================================
-    // 13. Update Trust Score
-    // ==========================================
-
-    await User.findByIdAndUpdate(
-        reviewedUserId,
-        {
-            $set: {
-                trustScore
-            }
-        }
-    );
+    const trustScore = await recalculateTrustScore(reviewedUserId);
 
 
     // ==========================================
@@ -771,51 +683,7 @@ const createRentReview = asyncHandler(async (req, res) => {
     // 12. Recalculate Trust Score
     // ==========================================
 
-    const ratingResult =
-        await Review.aggregate([
-            {
-                $match: {
-                    reviewedUserId:
-                        new mongoose.Types.ObjectId(
-                            reviewedUserId
-                        )
-                }
-            },
-
-            {
-                $group: {
-                    _id: "$reviewedUserId",
-
-                    averageRating: {
-                        $avg: "$rating"
-                    }
-                }
-            }
-        ]);
-
-
-    const trustScore =
-        ratingResult.length > 0
-            ? Number(
-                ratingResult[0]
-                    .averageRating
-                    .toFixed(2)
-            )
-            : 0;
-
-
-    // ==========================================
-    // 13. Update Trust Score
-    // ==========================================
-
-    await User.findByIdAndUpdate(
-        reviewedUserId,
-        {
-            $set: {
-                trustScore
-            }
-        }
-    );
+    const trustScore = await recalculateTrustScore(reviewedUserId);
 
 
     // ==========================================

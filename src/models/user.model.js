@@ -67,6 +67,10 @@ const userSchema = new Schema(
             max: 5,
             default: 0,
         },
+        likedItems: [{
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Item"
+        }],
         refreshToken: {
             type: String
         },
