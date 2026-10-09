@@ -5,7 +5,23 @@ import cookieParser from "cookie-parser";
 const app=express();
 app.use(cors(
     {
-        origin:process.env.CORS_ORIGIN,
+        origin(origin, callback) {
+            const configuredOrigins = (process.env.CORS_ORIGIN || "")
+                .split(",")
+                .map((configuredOrigin) => configuredOrigin.trim().replace(/\/+$/, ""))
+                .filter(Boolean);
+            const allowedOrigins = [
+                "https://swi-vastu.vercel.app",
+                ...configuredOrigins,
+            ];
+
+            if (!origin || allowedOrigins.includes(origin)) {
+                callback(null, true);
+                return;
+            }
+
+            callback(null, false);
+        },
         credentials:true,
     }
 ))

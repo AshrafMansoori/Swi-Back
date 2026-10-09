@@ -14,6 +14,6 @@ Express and MongoDB API for the SwiVastu peer-to-peer marketplace.
 - `POST /api/v1/exchange-requests/` — exchange request
 - `POST /api/v1/rent/request` — rental request
 
-Auth tokens are issued in secure, HTTP-only cookies. Configure `CORS_ORIGIN` for the frontend origin and use HTTPS in deployment so credentialed cross-site cookies work.
+Auth tokens are issued in secure, HTTP-only cookies. The live frontend origin (`https://swi-vastu.vercel.app`) is allowed by default. Set `CORS_ORIGIN` to one or more comma-separated additional frontend origins, and use HTTPS in deployment so credentialed cross-site cookies work.
 
 Trust score is recalculated when a purchase/exchange completes, a rental is returned, or a review is submitted. Completed transactions count in the score; each reviewed transaction contributes its star rating and each completed transaction without a review contributes a neutral rating of 3. The resulting weighted average is shown on a 0–5 scale.
