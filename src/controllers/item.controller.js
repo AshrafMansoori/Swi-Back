@@ -13,59 +13,189 @@ const creatItem = asyncHandler(async (req, res) => {
         description,
         category,
         condition,
-        
-        price,
-        rentDetails,
-        barterPreferences,
-
-
     } = req.body;
 
-    let listingType=req.body.listingType;
+    let listingType = req.body.listingType;
 
-    if (!title || !description || !category || !condition || !listingType) {
-        throw new ApiError(400, "Required Feild is missing")
+    if (
+        typeof title !== "string" ||
+        !title.trim() ||
+        title.trim().length > 120 ||
+        typeof description !== "string" ||
+        !description.trim() ||
+        description.trim().length > 5000 ||
+        typeof category !== "string" ||
+        !category.trim() ||
+        category.trim().length > 60 ||
+        typeof condition !== "string" ||
+        !listingType
+    ) {
+        throw new ApiError(400, "Valid title, description, category, condition, and listing type are required");
     }
     if (!req.body.location) {
-        throw new ApiError(400, "Location is required ")
+        throw new ApiError(400, "Location is required");
     }
-    const location = JSON.parse(req.body.location)
+
+    let location;
+    try {
+        location = JSON.parse(req.body.location);
+    } catch {
+        throw new ApiError(400, "Invalid location format");
+    }
+
+    if (
+        location?.type !== "Point" ||
+        !Array.isArray(location.coordinates) ||
+        location.coordinates.length !== 2 ||
+        !location.coordinates.every(Number.isFinite) ||
+        location.coordinates[0] < -180 ||
+        location.coordinates[0] > 180 ||
+        location.coordinates[1] < -90 ||
+        location.coordinates[1] > 90
+    ) {
+        throw new ApiError(400, "Location must contain valid [longitude, latitude] coordinates");
+    }
+
     if (!Array.isArray(listingType)) {
         listingType = [listingType];
     }
-    const ownerId = req.user._id;
+    listingType = [...new Set(listingType.map((type) => String(type).toLowerCase()))];
+    const allowedListingTypes = ["sell", "barter", "rent", "giveaway"];
+    if (
+        listingType.length === 0 ||
+        listingType.some((type) => !allowedListingTypes.includes(type))
+    ) {
+        throw new ApiError(400, "Select one or more valid listing types");
+    }
 
-    let images = []
-    for (const file of req.files) {
-        const response = await uploadOnCloudinary(file.path);
-        if (response) {
-            images.push(response.url);
+    const conditionValue = String(condition).trim();
+    const allowedConditions = ["New", "Like New", "Good", "Fair", "Poor"];
+    if (!allowedConditions.includes(conditionValue)) {
+        throw new ApiError(400, "Select a valid item condition");
+    }
+
+    if (!Array.isArray(req.files) || req.files.length < 1 || req.files.length > 5) {
+        throw new ApiError(400, "Upload between 1 and 5 item photos");
+    }
+
+    const priceValue = req.body.price === undefined || req.body.price === ""
+        ? undefined
+        : Number(req.body.price);
+    if (priceValue !== undefined && (!Number.isFinite(priceValue) || priceValue < 0)) {
+        throw new ApiError(400, "Price must be a valid non-negative amount");
+    }
+    if (listingType.includes("sell") && priceValue === undefined) {
+        throw new ApiError(400, "A valid selling price is required");
+    }
+
+    let rentDetails;
+    if (req.body.rentDetails) {
+        try {
+            rentDetails = JSON.parse(req.body.rentDetails);
+        } catch {
+            throw new ApiError(400, "Invalid rental details");
         }
     }
+    if (listingType.includes("rent")) {
+        if (
+            !rentDetails ||
+            typeof rentDetails !== "object" ||
+            Array.isArray(rentDetails)
+        ) {
+            throw new ApiError(400, "Rental details are required");
+        }
+        const pricePerDay = Number(rentDetails.pricePerDay);
+        const securityDeposit =
+            rentDetails.securityDeposit === undefined ||
+            rentDetails.securityDeposit === ""
+                ? undefined
+                : Number(rentDetails.securityDeposit);
+        const maxDurationDays =
+            rentDetails.maxDurationDays === undefined ||
+            rentDetails.maxDurationDays === ""
+                ? undefined
+                : Number(rentDetails.maxDurationDays);
+
+        if (!Number.isFinite(pricePerDay) || pricePerDay < 0) {
+            throw new ApiError(400, "A valid daily rental price is required");
+        }
+        if (
+            securityDeposit !== undefined &&
+            (!Number.isFinite(securityDeposit) || securityDeposit < 0)
+        ) {
+            throw new ApiError(400, "Security deposit must be a valid non-negative amount");
+        }
+        if (
+            maxDurationDays !== undefined &&
+            (!Number.isInteger(maxDurationDays) || maxDurationDays < 1)
+        ) {
+            throw new ApiError(400, "Maximum rental duration must be a positive whole number");
+        }
+
+        rentDetails = {
+            pricePerDay,
+            ...(securityDeposit !== undefined && { securityDeposit }),
+            ...(maxDurationDays !== undefined && { maxDurationDays }),
+        };
+    }
+
+    let barterPreferences;
+    if (req.body.barterPreferences) {
+        try {
+            barterPreferences = JSON.parse(req.body.barterPreferences);
+        } catch {
+            throw new ApiError(400, "Invalid exchange preferences");
+        }
+        if (
+            !Array.isArray(barterPreferences) ||
+            barterPreferences.length > 10 ||
+            barterPreferences.some(
+                (preference) =>
+                    typeof preference !== "string" ||
+                    !preference.trim() ||
+                    preference.trim().length > 100
+            )
+        ) {
+            throw new ApiError(400, "Exchange preferences must be a list of up to 10 options");
+        }
+        barterPreferences = barterPreferences.map((preference) => preference.trim());
+    }
+    if (listingType.includes("barter") && !barterPreferences?.length) {
+        throw new ApiError(400, "Add at least one exchange preference");
+    }
+
+    const ownerId = req.user._id;
+    const images = [];
+    for (const file of req.files) {
+        const response = await uploadOnCloudinary(file.path);
+        if (!response?.secure_url) {
+            throw new ApiError(502, "One or more item photos could not be uploaded");
+        }
+        images.push(response.secure_url);
+    }
+
     const item = await Item.create({
         ownerId,
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         images,
-        category,
+        category: category.trim().toLowerCase(),
         listingType,
-        condition,
-        price,
+        condition: conditionValue,
+        price: priceValue,
         rentDetails,
         barterPreferences,
         location,
-    })
+    });
 
     return res.
-        status(200).
+        status(201).
         json(
-            new ApiResponse(200, { item }, "item create successfully")
+            new ApiResponse(201, { item }, "Item created successfully")
         )
 
 
 })
-
-
 const getHomeProducts = asyncHandler(async (req, res) => {
 
     const {
@@ -172,6 +302,8 @@ const getHomeProducts = asyncHandler(async (req, res) => {
         );
 });
 
+
+
 const getSingleItem = asyncHandler(async (req, res) => {
 
     const { itemId } = req.params;
@@ -181,7 +313,7 @@ const getSingleItem = asyncHandler(async (req, res) => {
     }
 
     const item = await Item.findById(itemId)
-        .populate("ownerId", "fullname email contactNumber");
+        .populate("ownerId", "fullname profileImage trustScore isVerified");
 
     if (!item) {
         throw new ApiError(404, "Item not found");
@@ -458,5 +590,3 @@ export {
     deleteItem
 
 }
-
-

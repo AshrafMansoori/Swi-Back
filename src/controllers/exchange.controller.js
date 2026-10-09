@@ -72,6 +72,20 @@ const createExchangeRequest = asyncHandler(async (req, res) => {
         );
     }
 
+    if (requestedItem.status !== "Available" || offeredItem.status !== "Available") {
+        throw new ApiError(
+            400,
+            "Both items must be available for exchange"
+        );
+    }
+
+    if (!requestedItem.listingType.includes("barter")) {
+        throw new ApiError(
+            400,
+            "This item is not available for exchange"
+        );
+    }
+
 
     // 9. Offered item must belong to requester
     if (
@@ -370,7 +384,7 @@ const getExchangeHistory = asyncHandler(async (req, res) => {
             { ownerId: userId }
         ],
         status: {
-            $in: ["accepted", "rejected", "cancelled"]
+            $in: ["accepted", "completed", "rejected", "cancelled"]
         }
     })
         .populate("requesterId", "fullname profileImage")

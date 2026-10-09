@@ -60,11 +60,14 @@ const createPurchaseRequest = asyncHandler(async (req, res) => {
         );
     }
 
-    // 8. Item must support Sell
-    if (!item.listingType.includes("Sell")) {
+    // Sell and giveaway listings both use the owner-approval flow.
+    if (
+        !item.listingType.includes("sell") &&
+        !item.listingType.includes("giveaway")
+    ) {
         throw new ApiError(
             400,
-            "This item is not available for sale"
+            "This item is not available for purchase or giveaway"
         );
     }
 
@@ -237,11 +240,14 @@ const acceptPurchaseRequest = asyncHandler(async (req, res) => {
         );
     }
 
-    // 9. Make sure it is a Sell item
-    if (!item.listingType.includes("Sell")) {
+    // 9. Make sure it is available to sell or give away
+    if (
+        !item.listingType.includes("sell") &&
+        !item.listingType.includes("giveaway")
+    ) {
         throw new ApiError(
             400,
-            "This item is not available for sale"
+            "This item is not available for purchase or giveaway"
         );
     }
 

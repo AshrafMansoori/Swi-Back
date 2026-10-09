@@ -87,10 +87,21 @@ const createRentRequest = asyncHandler(async (req, res) => {
     }
 
     // 10. Item must support Rent
-    if (!item.listingType.includes("Rent")) {
+    if (!item.listingType.includes("rent")) {
         throw new ApiError(
             400,
             "This item is not available for rent"
+        );
+    }
+
+    const maximumDuration = item.rentDetails?.maxDurationDays;
+    const requestedDuration = Math.ceil(
+        (end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)
+    );
+    if (maximumDuration && requestedDuration > maximumDuration) {
+        throw new ApiError(
+            400,
+            `Rental duration cannot exceed ${maximumDuration} days`
         );
     }
 
@@ -265,7 +276,7 @@ const acceptRentRequest = asyncHandler(async (req, res) => {
     }
 
     // 8. Item must support Rent
-    if (!item.listingType.includes("Rent")) {
+    if (!item.listingType.includes("rent")) {
         throw new ApiError(
             400,
             "This item is not available for rent"
